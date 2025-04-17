@@ -1039,67 +1039,57 @@ document.addEventListener('DOMContentLoaded', function() {
                         sendNextChunk();
                     } else {
                         // CHAMAR /merge_chunks APÓS TODOS OS CHUNKS
-                        progressBar.value = 100;
-                        let mergeAttempt = 1;
-                        const maxMergeAttempts = 5;
-                        const mergeDelays = [2000, 4000, 8000, 16000, 32000]; // ms
-                        function tryMerge(mergeCallback) {
-                            progressStatus.textContent = `Montando arquivo... (tentativa ${mergeAttempt}/${maxMergeAttempts})`;
-                            const mergeData = new FormData();
-                            mergeData.append('filename', file.name);
-                            mergeData.append('total_chunks', totalChunks);
-                            mergeData.append('current_path', currentPath);
-                            fetch('/merge_chunks', {
-                                method: 'POST',
-                                body: mergeData
-                            }).then(async resp => {
-                                if (resp.ok) {
-                                    progressStatus.textContent = 'Concluído!';
-                                    setTimeout(() => {
-                                        if (progressBar) progressBar.style.display = 'none';
-                                        progressStatus.textContent = '';
-                                        if (fileInput) fileInput.value = '';
-                                        if (typeof mergeCallback === 'function') mergeCallback(true);
-                                    }, 800);
-                                } else {
-                                    if (mergeAttempt < maxMergeAttempts) {
-                                        mergeAttempt++;
-                                        setTimeout(() => tryMerge(mergeCallback), mergeDelays[mergeAttempt-2]);
+                        console.log('Todos os chunks enviados para', file.name, '- iniciando merge');
+                        const mergeXhr = new XMLHttpRequest();
+                        mergeXhr.open('POST', '/merge_chunks', true);
+                        mergeXhr.onload = function() {
+                            let success = false;
+                            if (mergeXhr.status === 200) {
+                                try {
+                                    // Se resposta vazia, considerar sucesso
+                                    const resp = mergeXhr.responseText ? JSON.parse(mergeXhr.responseText) : {};
+                                    if (resp.success !== undefined ? resp.success : true) {
+                                        progressStatus.textContent = 'Arquivo montado com sucesso!';
+                                        success = true;
                                     } else {
-                                        const err = await resp.text();
-                                        progressStatus.innerHTML = '<span style="color:red;">' + (err || 'Erro ao montar arquivo') + '</span>';
-                                        if (progressBar) progressBar.style.display = 'none';
-                                        if (typeof mergeCallback === 'function') mergeCallback(false);
+                                        progressStatus.textContent = 'Falha ao montar arquivo!';
+                                    }
+                                } catch (e) {
+                                    if (!mergeXhr.responseText) {
+                                        progressStatus.textContent = 'Arquivo montado com sucesso!';
+                                        success = true;
+                                    } else {
+                                        progressStatus.textContent = 'Erro ao interpretar resposta do servidor!';
                                     }
                                 }
-                            }).catch(() => {
-                                if (mergeAttempt < maxMergeAttempts) {
-                                    mergeAttempt++;
-                                    setTimeout(() => tryMerge(mergeCallback), mergeDelays[mergeAttempt-2]);
-                                } else {
-                                    progressStatus.innerHTML = '<span style="color:red;">Erro de conexão ao montar arquivo</span>';
-                                    if (progressBar) progressBar.style.display = 'none';
-                                    if (typeof mergeCallback === 'function') mergeCallback(false);
-                                }
-                            });
-                        }
-                        // Recebe callback para uploadNextFile
-                        if (typeof file._afterUpload === 'function') {
-                            tryMerge(file._afterUpload);
-                        } else {
-                            tryMerge();
-                        }
+                            } else {
+                                progressStatus.textContent = 'Erro ao montar arquivo!';
+                            }
+                            console.log('Merge finalizado para', file.name, '- sucesso:', success);
+                            if (typeof file._afterUpload === 'function') file._afterUpload(success);
+                        };
+                        mergeXhr.onerror = function() {
+                            progressStatus.textContent = 'Erro de conexão ao montar!';
+                            console.log('Merge erro de conexão para', file.name);
+                            if (typeof file._afterUpload === 'function') file._afterUpload(false);
+                        };
+                        const mergeForm = new FormData();
+                        mergeForm.append('filename', file.name);
+                        mergeForm.append('total_chunks', totalChunks);
+                        mergeForm.append('current_path', currentPath);
+                        mergeXhr.send(mergeForm);
                     }
                 } else {
-                    // Mostra mensagem de erro detalhada do backend
-                    progressStatus.innerHTML = '<span style="color:red;">' + (xhr.responseText || 'Erro no upload') + '</span>';
+                    progressStatus.textContent = 'Erro ao enviar chunk.';
                     progressBar.style.display = 'none';
+                    console.log('Erro ao enviar chunk para', file.name);
                     if (typeof file._afterUpload === 'function') file._afterUpload(false);
                 }
             };
             xhr.onerror = function() {
                 progressStatus.textContent = 'Erro de conexão.';
                 progressBar.style.display = 'none';
+                console.log('Erro de conexão ao enviar chunk para', file.name);
                 if (typeof file._afterUpload === 'function') file._afterUpload(false);
             };
             xhr.send(formData);

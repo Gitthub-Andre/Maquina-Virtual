@@ -7,4 +7,6 @@ Restaurar Nginx
 sudo cp /etc/nginx/sites-enabled/default.bak /etc/nginx/sites-enabled/default
 
 Salvar alteracoes no git
+git add .
+git commit -m "Ajustes no upload sequencial de múltiplos arquivos e correções na lógica de montagem."
 git push -u origin master

@@ -180,12 +180,12 @@ def merge_chunks():
                 os.remove(part_path)
         app.logger.info(f"[MERGE_CHUNKS] Arquivo montado com sucesso: {final_path}")
         os.remove(lock_path)
-        return Response('OK', status=200)
+        return jsonify({'success': True})
     except Exception as e:
         app.logger.error(f"[MERGE_CHUNKS] Erro ao montar arquivo final: {e}")
         if os.path.exists(lock_path):
             os.remove(lock_path)
-        return Response(f'Erro ao montar arquivo final: {e}', status=500)
+        return jsonify({'success': False, 'message': f'Erro ao montar arquivo final: {str(e)}'}), 500
 
 @app.route('/upload_chunk', methods=['POST'])
 def upload_chunk():
