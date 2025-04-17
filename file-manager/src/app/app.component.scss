@@ -1,0 +1,12 @@
+.file-manager-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  
+  .file-upload-section, .file-list-section, .file-preview-section {
+    margin: 20px 0;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+}

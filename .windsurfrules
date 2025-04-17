@@ -1,0 +1,7 @@
+Para rodar o app.py
+gunicorn -w 4 -b 127.0.0.1:5000 app:app
+
+Backup Nginx
+sudo cp /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/default.bak
+Restaurar Nginx
+sudo cp /etc/nginx/sites-enabled/default.bak /etc/nginx/sites-enabled/default

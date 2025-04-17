@@ -1,0 +1,294 @@
+# README COMPLETO DO PROJETO
+
+## Visão Geral
+Este sistema integra autenticação via Node.js (com MongoDB) e um aplicativo principal em Flask (Python), protegendo o acesso ao Flask com JWT. O fluxo garante que apenas usuários autenticados possam acessar as funcionalidades do app Python, utilizando cookies para manter a sessão.
+
+---
+
+## Estrutura de Diretórios
+
+```
+/home/ubuntu/
+├── public/                           # Frontend (login, registro) servido pelo Node.js
+│   └── index.html
+├── Servidor/                         # Backend Flask (app principal)
+│   ├── app.py
+│   └── venv/                         # Ambiente virtual Python
+├── Cloud-Oracle/Maquina Virtual/     # Backup local dos arquivos principais
+│   ├── app.py
+│   └── ubuntu/index.html
+├── /etc/nginx/sites-enabled/default  # Configuração do Nginx
+└── /etc/systemd/system/flask.service # Serviço systemd do Gunicorn/Flask
+```
+
+---
+
+## Componentes do Sistema
+
+### 1. Node.js (Autenticação + MongoDB)
+- **Função:** Responsável pelo login, registro e geração do JWT.
+- **Frontend:** `/home/ubuntu/public/index.html`
+  - Formulário de login envia dados para `/auth/login` (Node.js).
+  - Após autenticação, salva o JWT como cookie e redireciona para o Flask.
+- **Backend:** Servido na porta **3000** (ex: http://140.238.180.148:3000/)
+- **Banco de dados:** MongoDB
+  - Armazena usuários e senhas (criptografadas).
+  - **Credenciais:** Definidas no arquivo `.env` do backend Node.js, exemplo:
+    ```
+    MONGO_URI=mongodb://usuario:senha@localhost:27017/nome_do_banco
+    JWT_SECRET=chave_super_secreta
+    ```
+  - **Localização do .env:** Diretório do projeto Node.js.
+- **Observações:**
+  - Recomenda-se rodar o Node.js com PM2 ou outro gerenciador para permanência.
+  - Nunca versionar o arquivo `.env`.
+  - O JWT gerado deve usar o mesmo segredo do Flask.
+
+### 2. Flask (app.py) - Aplicação Principal
+- **Localização:** `/home/ubuntu/Servidor/app.py`
+- **Porta Interna:** **5001** (acessada apenas via Nginx)
+- **Ambiente virtual:** `/home/ubuntu/Servidor/venv/`
+- **Proteção:** Todas as rotas principais (ex: `/`, `/upload`, etc) protegidas pelo decorator `@login_required`, que valida o JWT presente no cookie.
+- **Logout:** Rota `/logout` apaga o cookie JWT e redireciona para o login do Node.js.
+- **Dependências principais:** flask, flask_cors, pyjwt, requests, gunicorn, werkzeug
+- **Execução:**
+  - Rodando com Gunicorn, gerenciado por systemd (serviço `flask`).
+  - Exemplo de comando manual:
+    ```bash
+    gunicorn -w 4 -b 0.0.0.0:5001 app:app
+    ```
+- **Logs:**
+  - `journalctl -u flask -f` (tempo real)
+- **Backup:**
+  - Mantenha cópia de segurança do app.py e do requirements.txt.
+
+### 3. Nginx (Proxy Reverso)
+- **Arquivo de configuração:** `/etc/nginx/sites-enabled/default`
+- **Função:** Recebe requisições na porta **80** e repassa para o Flask na porta **5001**.
+- **Trecho essencial:**
+    ```nginx
+    location / {
+        proxy_pass http://127.0.0.1:5001;
+        proxy_set_header Cookie $http_cookie;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_cache_bypass $http_upgrade;
+        proxy_no_cache 1;
+        proxy_cache_bypass 1;
+    }
+    ```
+- **Observações:**
+  - Desativa cache e define Content Security Policy.
+  - Logs em `/var/log/nginx/`.
+  - Para HTTPS, adicionar configuração de SSL.
+
+### 4. Gunicorn (WSGI Server para Flask)
+- **Serviço systemd:** `/etc/systemd/system/flask.service`
+- **Configuração:**
+    ```ini
+    [Unit]
+    Description=Flask App com Gunicorn
+    After=network.target
+
+    [Service]
+    User=ubuntu
+    Group=ubuntu
+    WorkingDirectory=/home/ubuntu/Servidor
+    Environment="PATH=/home/ubuntu/Servidor/venv/bin"
+    ExecStart=/home/ubuntu/Servidor/venv/bin/gunicorn -w 4 -b 0.0.0.0:5001 app:app
+    Restart=always
+
+    [Install]
+    WantedBy=multi-user.target
+    ```
+- **Comandos úteis:**
+    ```bash
+    sudo systemctl status flask
+    sudo systemctl restart flask
+    sudo systemctl enable flask
+    ```
+- **Logs:**
+    ```bash
+    journalctl -u flask -f
+    ```
+
+### 5. MongoDB
+- **Função:** Armazena usuários e dados de autenticação.
+- **Porta padrão:** **27017**
+- **Credenciais:** Definidas no `.env` do Node.js.
+- **Backup:**
+    ```bash
+    mongodump --out /caminho/do/backup
+    mongorestore /caminho/do/backup
+    ```
+- **Segurança:**
+  - Nunca exponha o MongoDB para internet sem autenticação e firewall.
+  - Use usuários e senhas fortes.
+
+---
+
+## Fluxo de Funcionamento
+
+1. Usuário acessa `http://140.238.180.148/` (Nginx → Flask)
+2. Se não autenticado, é redirecionado para `http://140.238.180.148:3000/` (login Node.js)
+3. Após login, Node.js gera JWT, salva como cookie e redireciona para `http://140.238.180.148/`
+4. Flask valida o JWT no cookie antes de liberar acesso.
+5. Ao clicar em “Logout”, o cookie é apagado e o usuário volta para a tela de login.
+
+---
+
+## Observações e Dicas Importantes
+
+- **Sempre reinicie o serviço Flask após editar o app.py:**
+    ```bash
+    sudo systemctl restart flask
+    ```
+- **Para editar arquivos protegidos, use `sudo nano` ou `sudo vim`.**
+- **O cookie JWT deve ser definido para o domínio principal (`140.238.180.148`) e path `/`.**
+- **Nunca versionar arquivos sensíveis (.env, credenciais).**
+- **Para logs do Flask via systemd:**
+    ```bash
+    journalctl -u flask -f
+    ```
+- **Para logs do Nginx:**
+    ```bash
+    tail -f /var/log/nginx/access.log /var/log/nginx/error.log
+    ```
+- **Para logs do Node.js:** depende de como está rodando (pm2, forever, etc).
+- **Para logs do MongoDB:**
+    ```bash
+    tail -f /var/log/mongodb/mongod.log
+    ```
+- **Para troubleshooting de autenticação:**
+    - Verifique se o cookie `token` está presente e válido.
+    - Use janela anônima para testar fluxo limpo.
+    - Confirme se o JWT_SECRET é igual no Node.js e no Flask.
+
+---
+
+## Serviços Permanentes Habilitados
+
+- **Nginx:** Inicia automaticamente e serve como proxy reverso.
+- **Gunicorn/Flask:** Serviço systemd chamado `flask` (ativo e habilitado).
+- **Node.js:** Recomenda-se rodar com PM2 ou outro gerenciador para permanência (confirme se está usando).
+- **MongoDB:** Geralmente já configurado como serviço permanente (`mongod`).
+
+---
+
+## Portas Utilizadas
+
+- **80:** HTTP (Nginx, acesso externo)
+- **3000:** Node.js (login e registro)
+- **5001:** Flask (interno, acessado apenas via Nginx)
+- **27017:** MongoDB (acesso interno)
+
+---
+
+## Resumo dos Principais Arquivos e Configurações
+
+- `/home/ubuntu/public/index.html` – Frontend login/registro (Node.js)
+- `/home/ubuntu/Servidor/app.py` – Backend Flask
+- `/etc/nginx/sites-enabled/default` – Configuração do Nginx
+- `/etc/systemd/system/flask.service` – Serviço systemd do Flask/Gunicorn
+- `.env` do Node.js – Credenciais do MongoDB e JWT_SECRET
+
+---
+
+## Segurança e Boas Práticas
+
+- **Nunca exponha o MongoDB sem autenticação.**
+- **Mantenha o JWT_SECRET seguro e igual em Node.js e Flask.**
+- **Use sempre HTTPS em produção (Nginx pode ser configurado para isso).**
+- **Faça backup regular dos dados e configs.**
+- **Revise permissões dos diretórios e arquivos sensíveis.**
+- **Mantenha o sistema e dependências atualizados.**
+
+---
+
+## Comandos Úteis
+
+- **Reiniciar serviços:**
+    ```bash
+    sudo systemctl restart flask
+    sudo systemctl restart nginx
+    ```
+- **Ver status:**
+    ```bash
+    sudo systemctl status flask
+    sudo systemctl status nginx
+    ```
+- **Ver logs:**
+    ```bash
+    journalctl -u flask -f
+    tail -f /var/log/nginx/error.log
+    tail -f /var/log/mongodb/mongod.log
+    ```
+- **Backup MongoDB:**
+    ```bash
+    mongodump --out /caminho/do/backup
+    ```
+
+---
+
+Se precisar de exemplos de comandos para backup, restauração, requirements.txt, troubleshooting ou quiser expandir o sistema, consulte este README ou peça orientações adicionais!
+}
+Desativa cache e define políticas de segurança de conteúdo.
+4. Gunicorn (WSGI Server para Flask)
+Serviço systemd: /etc/systemd/system/flask.service
+Comando de inicialização:
+CopyInsert
+ExecStart=/home/ubuntu/Servidor/venv/bin/gunicorn -w 4 -b 0.0.0.0:5001 app:app
+Status permanente: Habilitado para iniciar com o sistema (systemctl enable flask).
+5. MongoDB
+Função: Armazena usuários e dados de autenticação.
+Porta padrão: 27017
+Credenciais: Definidas no arquivo .env do Node.js (NUNCA versionar esse arquivo).
+Backup: Recomenda-se backup regular do banco usando mongodump.
+Fluxo de Funcionamento
+Usuário acessa http://140.238.180.148/ (Nginx → Flask)
+Se não autenticado, é redirecionado para http://140.238.180.148:3000/ (login Node.js)
+Após login, Node.js gera JWT, salva como cookie e redireciona para http://140.238.180.148/
+Flask valida o JWT no cookie antes de liberar acesso.
+Ao clicar em “Logout”, o cookie é apagado e o usuário volta para a tela de login.
+Observações e Dicas Importantes
+Sempre reinicie o serviço Flask após editar o app.py:
+bash
+CopyInsert in Terminal
+sudo systemctl restart flask
+Para editar arquivos protegidos, use sudo nano ou sudo vim.
+O cookie JWT deve ser definido para o domínio principal (140.238.180.148) e path /.
+Nunca exponha o MongoDB para a internet sem autenticação e firewall.
+Não versionar arquivos sensíveis (.env, credenciais).
+Para logs do Flask via systemd:
+bash
+CopyInsert in Terminal
+journalctl -u flask -f
+Para logs do Nginx:
+CopyInsert
+tail -f /var/log/nginx/access.log /var/log/nginx/error.log
+Para logs do Node.js: depende de como está rodando (pm2, forever, etc).
+Serviços permanentes habilitados
+Nginx: Inicia automaticamente e serve como proxy reverso.
+Gunicorn/Flask: Serviço systemd chamado flask (ativo e habilitado).
+Node.js: Recomenda-se rodar com PM2 ou outro gerenciador para permanência (confirme se está usando).
+Portas utilizadas
+80: HTTP (Nginx, acesso externo)
+3000: Node.js (login e registro)
+5001: Flask (interno, acessado apenas via Nginx)
+27017: MongoDB (acesso interno)
+Resumo rápido dos principais arquivos
+/home/ubuntu/public/index.html – Frontend login/registro (Node.js)
+/home/ubuntu/Servidor/app.py – Backend Flask
+/etc/nginx/sites-enabled/default – Configuração do Nginx
+/etc/systemd/system/flask.service – Serviço systemd do Flask/Gunicorn
+.env do Node.js – Credenciais do MongoDB e JWT_SECRET
+Segurança
+Nunca exponha o MongoDB sem autenticação.
+Mantenha o JWT_SECRET seguro e igual em Node.js e Flask.
+Use sempre HTTPS em produção (Nginx pode ser configurado para isso).
+Faça backup regular dos dados e configs.
