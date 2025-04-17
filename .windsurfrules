@@ -5,3 +5,6 @@ Backup Nginx
 sudo cp /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/default.bak
 Restaurar Nginx
 sudo cp /etc/nginx/sites-enabled/default.bak /etc/nginx/sites-enabled/default
+
+Salvar alteracoes no git
+git push -u origin master

@@ -927,33 +927,6 @@
 
             xhr.send(formData);
         }
-        if (uploadForm) {
-            uploadForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                handleUpload(fileInput.files);
-            });
-        }
-        // Drag and drop para upload
-        const dropZone = document.getElementById('dropZone');
-        if (dropZone) {
-            ['dragenter', 'dragover'].forEach(eventName => {
-                dropZone.addEventListener(eventName, e => {
-                    e.preventDefault();
-                    dropZone.classList.add('highlight');
-                }, false);
-            });
-            ['dragleave', 'drop'].forEach(eventName => {
-                dropZone.addEventListener(eventName, e => {
-                    e.preventDefault();
-                    dropZone.classList.remove('highlight');
-                }, false);
-            });
-            dropZone.addEventListener('drop', function(e) {
-                const files = e.dataTransfer.files;
-                progressBar.style.display = 'block';
-                handleUpload(files);
-            });
-        }
     });
     </script>
 </head>
@@ -980,107 +953,189 @@
             {% endif %}
         {% endwith %}
         
-        <form method="post" action="/upload" enctype="multipart/form-data" class="upload-form" id="upload-form">
-    <input type="hidden" name="current_path" value="{{ current_path }}">
-    <input type="file" name="file" multiple class="file-input" id="fileInput">
-    <button type="submit" class="btn">Upload</button>
-    <progress id="uploadProgress" value="0" max="100" style="width: 300px; display: none; margin-left: 10px;"></progress>
+        <form class="upload-form" id="upload-form">
+    <input type="hidden" name="current_path" id="currentPathInput" value="{{ current_path }}">
+    <input type="file" name="file" multiple class="file-input" id="fileInput" required>
+    <button type="submit" class="btn">Enviar Arquivo(s)</button>
+    <button type="button" class="btn btn-danger" id="cancelUploadBtn" style="margin-left:10px;">Cancelar Seleção</button>
+    <div class="upload-info">
+        <small>Arquivos de até 10GB suportados. O envio é feito em partes para maior estabilidade. Não feche a janela durante o envio.</small>
+    </div>
+    <progress id="uploadProgress" value="0" max="100" style="width: 300px; display: none; margin-top: 10px;"></progress>
     <span id="progressStatus" style="margin-left: 10px;"></span>
 </form>
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Upload com barra de progresso
-            const uploadForm = document.getElementById('upload-form');
-            const fileInput = document.getElementById('fileInput');
-            const progressBar = document.getElementById('uploadProgress');
-
-            function handleUpload(files) {
-                console.log('handleUpload chamado', files);
-                if (!files || !files.length) {
-                    alert('Selecione um arquivo para enviar.');
-                    return;
-                }
-                const formData = new FormData();
-                // Adiciona todos os arquivos
-                for (let i = 0; i < files.length; i++) {
-                    formData.append('file', files[i]);
-                }
-                // Sempre adiciona o current_path correto
-                console.log('window.current_path:', window.current_path);
-                formData.append('current_path', window.current_path || '');
-                // Log do que está sendo enviado
-                for (let pair of formData.entries()) {
-                    console.log('FormData:', pair[0], pair[1]);
-                }
-                progressBar.style.display = 'block';
-                progressBar.value = 0;
-                progressStatus.textContent = '';
-                let hideTimeout = null;
-                const xhr = new XMLHttpRequest();
-                xhr.open('POST', '/upload', true);
-                xhr.upload.onprogress = function(e) {
-                    if (e.lengthComputable) {
-                        const percent = Math.round((e.loaded / e.total) * 100);
-                        progressBar.value = percent;
-                        progressStatus.textContent = percent + '%';
-                    }
-                };
-                xhr.onload = function() {
-                    if (xhr.status === 200) {
-                        progressBar.value = 100;
-                        progressStatus.textContent = 'Concluído!';
-                        hideTimeout = setTimeout(() => {
-                            progressBar.style.display = 'none';
-                            progressStatus.textContent = '';
-                            fileInput.value = '';
-                            window.location.reload();
-                        }, 800);
-                    } else {
-                        progressStatus.textContent = 'Erro no upload';
-                        progressBar.style.display = 'none';
-                    }
-                };
-                xhr.onerror = function() {
-                    progressStatus.textContent = 'Erro de conexão.';
-                    if (hideTimeout) clearTimeout(hideTimeout);
-                    progressBar.style.display = 'none';
-                };
-
-                xhr.send(formData);
-            }
-            if (uploadForm) {
-                uploadForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    handleUpload(fileInput.files);
-                });
-            }
-            // Drag and drop para upload
-            const dropZone = document.getElementById('dropZone');
-            if (dropZone) {
-                ['dragenter', 'dragover'].forEach(eventName => {
-                    dropZone.addEventListener(eventName, e => {
-                        e.preventDefault();
-                        dropZone.classList.add('highlight');
-                    }, false);
-                });
-                ['dragleave', 'drop'].forEach(eventName => {
-                    dropZone.addEventListener(eventName, e => {
-                        e.preventDefault();
-                        dropZone.classList.remove('highlight');
-                    }, false);
-                });
-                dropZone.addEventListener('drop', function(e) {
-                    const files = e.dataTransfer.files;
-                    progressBar.style.display = 'block';
-                    handleUpload(files);
-                });
-            }
+<script>
+// Drag-and-drop (preenche apenas o input, não envia via JS)
+document.addEventListener('DOMContentLoaded', function() {
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const cancelBtn = document.getElementById('cancelUploadBtn');
+    if (dropZone && fileInput) {
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, e => {
+                e.preventDefault();
+                dropZone.classList.add('active');
+            }, false);
         });
-        </script>
-        <div class="drop-zone" id="dropZone">
-            <p>Arraste arquivos aqui para upload</p>
-            
-        </div>
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, e => {
+                e.preventDefault();
+                dropZone.classList.remove('active');
+            }, false);
+        });
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            fileInput.files = e.dataTransfer.files;
+            // Não iniciar upload aqui!
+        });
+    }
+
+    // Cancelar seleção/upload (antes do envio)
+    if (cancelBtn && fileInput) {
+        cancelBtn.addEventListener('click', function() {
+            fileInput.value = '';
+            document.getElementById('uploadProgress').style.display = 'none';
+            document.getElementById('progressStatus').textContent = '';
+        });
+    }
+
+    // Chunked upload handler
+    const uploadForm = document.getElementById('upload-form');
+    const progressBar = document.getElementById('uploadProgress');
+    const progressStatus = document.getElementById('progressStatus');
+    const currentPathInput = document.getElementById('currentPathInput');
+
+    function uploadChunked(file, currentPath) {
+        const chunkSize = 2 * 1024 * 1024; // 2MB por chunk
+        const totalChunks = Math.ceil(file.size / chunkSize);
+        let chunkIndex = 0;
+        let uploadedBytes = 0;
+
+        progressBar.style.display = 'block';
+        progressBar.value = 0;
+        progressStatus.textContent = '';
+
+        function sendNextChunk() {
+            const start = chunkIndex * chunkSize;
+            const end = Math.min(start + chunkSize, file.size);
+            const chunk = file.slice(start, end);
+            const formData = new FormData();
+            formData.append('file', chunk);
+            formData.append('filename', file.name);
+            formData.append('current_path', currentPath);
+            formData.append('chunk_index', chunkIndex + 1);
+            formData.append('total_chunks', totalChunks);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload_chunk', true);
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    chunkIndex++;
+                    uploadedBytes += chunk.size;
+                    const percent = Math.round((uploadedBytes / file.size) * 100);
+                    progressBar.value = percent;
+                    progressStatus.textContent = percent + '%';
+                    if (chunkIndex < totalChunks) {
+                        sendNextChunk();
+                    } else {
+                        // CHAMAR /merge_chunks APÓS TODOS OS CHUNKS
+                        progressBar.value = 100;
+                        let mergeAttempt = 1;
+                        const maxMergeAttempts = 5;
+                        const mergeDelays = [2000, 4000, 8000, 16000, 32000]; // ms
+                        function tryMerge(mergeCallback) {
+                            progressStatus.textContent = `Montando arquivo... (tentativa ${mergeAttempt}/${maxMergeAttempts})`;
+                            const mergeData = new FormData();
+                            mergeData.append('filename', file.name);
+                            mergeData.append('total_chunks', totalChunks);
+                            mergeData.append('current_path', currentPath);
+                            fetch('/merge_chunks', {
+                                method: 'POST',
+                                body: mergeData
+                            }).then(async resp => {
+                                if (resp.ok) {
+                                    progressStatus.textContent = 'Concluído!';
+                                    setTimeout(() => {
+                                        if (progressBar) progressBar.style.display = 'none';
+                                        progressStatus.textContent = '';
+                                        if (fileInput) fileInput.value = '';
+                                        if (typeof mergeCallback === 'function') mergeCallback(true);
+                                    }, 800);
+                                } else {
+                                    if (mergeAttempt < maxMergeAttempts) {
+                                        mergeAttempt++;
+                                        setTimeout(() => tryMerge(mergeCallback), mergeDelays[mergeAttempt-2]);
+                                    } else {
+                                        const err = await resp.text();
+                                        progressStatus.innerHTML = '<span style="color:red;">' + (err || 'Erro ao montar arquivo') + '</span>';
+                                        if (progressBar) progressBar.style.display = 'none';
+                                        if (typeof mergeCallback === 'function') mergeCallback(false);
+                                    }
+                                }
+                            }).catch(() => {
+                                if (mergeAttempt < maxMergeAttempts) {
+                                    mergeAttempt++;
+                                    setTimeout(() => tryMerge(mergeCallback), mergeDelays[mergeAttempt-2]);
+                                } else {
+                                    progressStatus.innerHTML = '<span style="color:red;">Erro de conexão ao montar arquivo</span>';
+                                    if (progressBar) progressBar.style.display = 'none';
+                                    if (typeof mergeCallback === 'function') mergeCallback(false);
+                                }
+                            });
+                        }
+                        // Recebe callback para uploadNextFile
+                        if (typeof file._afterUpload === 'function') {
+                            tryMerge(file._afterUpload);
+                        } else {
+                            tryMerge();
+                        }
+                    }
+                } else {
+                    // Mostra mensagem de erro detalhada do backend
+                    progressStatus.innerHTML = '<span style="color:red;">' + (xhr.responseText || 'Erro no upload') + '</span>';
+                    progressBar.style.display = 'none';
+                    if (typeof file._afterUpload === 'function') file._afterUpload(false);
+                }
+            };
+            xhr.onerror = function() {
+                progressStatus.textContent = 'Erro de conexão.';
+                progressBar.style.display = 'none';
+                if (typeof file._afterUpload === 'function') file._afterUpload(false);
+            };
+            xhr.send(formData);
+        }
+        sendNextChunk();
+    }
+
+    uploadForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const files = fileInput.files;
+        const currentPath = currentPathInput.value;
+        if (!files || !files.length) {
+            alert('Selecione um arquivo para enviar.');
+            return;
+        }
+        // Envio de todos os arquivos em sequência, só inicia o próximo após merge do anterior
+        function uploadNextFile(index) {
+            if (index >= files.length) {
+                // Limpa input e recarrega só ao final de todos
+                if (fileInput) fileInput.value = '';
+                window.location.reload();
+                return;
+            }
+            files[index]._afterUpload = function(success) {
+                // Só inicia o próximo após merge (ou erro)
+                uploadNextFile(index + 1);
+            };
+            uploadChunked(files[index], currentPath);
+        }
+        uploadNextFile(0);
+    });
+});
+</script>
+<div class="drop-zone" id="dropZone">
+    <p>Arraste arquivos aqui para selecionar</p>
+</div>
     </div>
     
     <div class="search-container">

@@ -140,6 +140,100 @@ def index(folder_path=''):
                          sort_dir=sort_dir)
 
 # Rota de upload modificada
+
+# Rota para upload em partes (chunked upload)
+from flask import Response
+
+@app.route('/merge_chunks', methods=['POST'])
+def merge_chunks():
+    filename = request.form.get('filename')
+    total_chunks = request.form.get('total_chunks')
+    current_path = request.form.get('current_path', '')
+    app.logger.info(f"[MERGE_CHUNKS] Solicitado merge: filename={filename}, total_chunks={total_chunks}, current_path={current_path}")
+    try:
+        total_chunks = int(total_chunks)
+    except Exception:
+        return Response('total_chunks inválido', status=400)
+    if not filename or not total_chunks:
+        return Response('Missing filename ou total_chunks', status=400)
+    dest_folder = os.path.join(app.config['UPLOAD_FOLDER'], current_path)
+    final_path = os.path.join(dest_folder, secure_filename(filename))
+    lock_path = final_path + '.lock'
+    # Checa se todos os chunks existem
+    for i in range(1, total_chunks+1):
+        part_path = os.path.join(dest_folder, f"{filename}.part{i:04d}")
+        if not os.path.exists(part_path):
+            app.logger.warning(f"[MERGE_CHUNKS] Chunk faltando: {part_path}")
+            return Response(f'Chunk faltando: {part_path}', status=400)
+    try:
+        if os.path.exists(lock_path):
+            app.logger.warning(f"[MERGE_CHUNKS] Outro processo está montando: {lock_path}")
+            return Response('Já existe montagem em andamento', status=409)
+        with open(lock_path, 'w') as lockfile:
+            lockfile.write('lock')
+        app.logger.info(f"[MERGE_CHUNKS] Iniciando montagem do arquivo final: {final_path}")
+        with open(final_path, 'wb') as f_out:
+            for i in range(1, total_chunks+1):
+                part_path = os.path.join(dest_folder, f"{filename}.part{i:04d}")
+                with open(part_path, 'rb') as f_in:
+                    shutil.copyfileobj(f_in, f_out)
+                os.remove(part_path)
+        app.logger.info(f"[MERGE_CHUNKS] Arquivo montado com sucesso: {final_path}")
+        os.remove(lock_path)
+        return Response('OK', status=200)
+    except Exception as e:
+        app.logger.error(f"[MERGE_CHUNKS] Erro ao montar arquivo final: {e}")
+        if os.path.exists(lock_path):
+            os.remove(lock_path)
+        return Response(f'Erro ao montar arquivo final: {e}', status=500)
+
+@app.route('/upload_chunk', methods=['POST'])
+def upload_chunk():
+    # --- LOG DE DEBUG INÍCIO ---
+    filename = request.form.get('filename') or request.form.get('resumableFilename')
+    chunk_index = request.form.get('chunk_index') or request.form.get('resumableChunkNumber')
+    total_chunks = request.form.get('total_chunks') or request.form.get('resumableTotalChunks')
+    current_path = request.form.get('current_path', '')
+    app.logger.info(f"[UPLOAD_CHUNK] Recebido chunk: filename={filename}, chunk_index={chunk_index}, total_chunks={total_chunks}, current_path={current_path}")
+
+    # Conversão de tipos
+    try:
+        chunk_index = int(chunk_index)
+    except Exception:
+        chunk_index = 1
+    try:
+        total_chunks = int(total_chunks)
+    except Exception:
+        total_chunks = 1
+    if not filename or 'file' not in request.files:
+        app.logger.error(f"[UPLOAD_CHUNK] Erro: Missing filename or file. filename={filename}, chunk_index={chunk_index}, total_chunks={total_chunks}")
+        return Response('Missing filename or file', status=400)
+
+    dest_folder = os.path.join(app.config['UPLOAD_FOLDER'], current_path)
+    os.makedirs(dest_folder, exist_ok=True)
+
+    # Nome do chunk temporário
+    chunk_name = f"{filename}.part{chunk_index:04d}"
+    chunk_path = os.path.join(dest_folder, chunk_name)
+    try:
+        app.logger.info(f"[UPLOAD_CHUNK] Salvando chunk {chunk_index}/{total_chunks}: {chunk_path}")
+        request.files['file'].save(chunk_path)
+        app.logger.info(f"[UPLOAD_CHUNK] Chunk salvo com sucesso: {chunk_path}")
+    except Exception as e:
+        app.logger.error(f"[UPLOAD_CHUNK] Erro ao salvar chunk {chunk_index}: {e}")
+        return Response(f'Erro ao salvar chunk {chunk_index}: {e}', status=500)
+
+    # LOG EXTRA: Estado dos arquivos após salvar chunk
+    import glob
+    chunk_files = glob.glob(os.path.join(dest_folder, filename + '.part*'))
+    app.logger.info(f"[UPLOAD_CHUNK] Arquivos de chunk existentes: {chunk_files}")
+    app.logger.info(f"[UPLOAD_CHUNK] Arquivo final existe? {os.path.exists(os.path.join(dest_folder, secure_filename(filename)))}")
+
+    # Após salvar o chunk, apenas loga e retorna sucesso. O merge será feito via /merge_chunks
+    return Response('OK', status=200)
+
+
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     print('DEBUG UPLOAD FORM:', dict(request.form))
