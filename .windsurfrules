@@ -10,3 +10,6 @@ Salvar alteracoes no git
 git add .
 git commit -m "Ajustes no upload sequencial de múltiplos arquivos e correções na lógica de montagem."
 git push -u origin master
+
+Pasta log do Plex
+ls -lh "/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Logs"

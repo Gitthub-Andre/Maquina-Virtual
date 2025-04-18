@@ -130,6 +130,13 @@ def index(folder_path=''):
     elif sort_column == 'date':
         files.sort(key=lambda x: x['modified'], reverse=reverse)
     
+    # Uso de disco
+    disk_usage = shutil.disk_usage("/")  # '/' funciona para Ubuntu/Linux
+    disk_total = disk_usage.total
+    disk_used = disk_usage.used
+    disk_free = disk_usage.free
+    disk_percent = int((disk_used / disk_total) * 100) if disk_total > 0 else 0
+
     return render_template('file_list.html', 
                          files=files, 
                          folders=folders,
@@ -137,7 +144,11 @@ def index(folder_path=''):
                          breadcrumbs=breadcrumbs,
                          current_path=folder_path,
                          sort_column=sort_column,
-                         sort_dir=sort_dir)
+                         sort_dir=sort_dir,
+                         disk_total=disk_total,
+                         disk_used=disk_used,
+                         disk_free=disk_free,
+                         disk_percent=disk_percent)
 
 # Rota de upload modificada
 

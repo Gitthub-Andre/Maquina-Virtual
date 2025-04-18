@@ -841,6 +841,51 @@
             background: #e53e3e;
             color: white;
         }
+    /* Barra de uso de disco */
+    .disk-usage-container {
+        margin-bottom: 18px;
+        padding: 12px 18px 8px 18px;
+        background: #f8fafc;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(67,233,123,0.07);
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        max-width: 420px;
+    }
+    .disk-usage-label {
+        font-size: 1rem;
+        color: #2e7d32;
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+    .disk-usage-bar-bg {
+        width: 100%;
+        height: 20px;
+        background: #e0e7ef;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 6px;
+        box-shadow: 0 1px 2px rgba(44,62,80,0.06);
+    }
+    .disk-usage-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #43e97b 0%, #38f9d7 100%);
+        border-radius: 8px 0 0 8px;
+        transition: width 0.6s cubic-bezier(.4,2,.3,1);
+    }
+    .disk-usage-info {
+        font-size: 0.97rem;
+        color: #38404a;
+        margin-top: 2px;
+        font-weight: 500;
+    }
+    @media (max-width: 700px) {
+        .disk-usage-container { max-width: 100%; padding: 8px 6px; }
+        .disk-usage-bar-bg { height: 14px; }
+        .disk-usage-label { font-size: 0.98rem; }
+        .disk-usage-info { font-size: 0.92rem; }
+    }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <script>
@@ -929,13 +974,24 @@
         }
     });
     </script>
+    <script src="{{ url_for('static', filename='disk_usage.js') }}"></script>
 </head>
 <body>
     <script>
-        // Garante que o current_path esteja disponível globalmente para o JS
-        window.current_path = "{{ current_path|e }}";
-    </script>
+    // Garante que o current_path esteja disponível globalmente para o JS
+    window.current_path = "{{ current_path|e }}";
+</script>
     <div class="panel">
+        <!-- Barra de uso de disco -->
+        <div class="disk-usage-container">
+            <div class="disk-usage-label">Espaço em disco:</div>
+            <div class="disk-usage-bar-bg">
+                <div class="disk-usage-bar-fill" id="diskUsageBar" data-percent="{{ disk_percent|default(0)|tojson }}"></div>
+            </div>
+            <div class="disk-usage-info">
+                {{ (disk_used // (1024*1024*1024)) }} GB usados de {{ (disk_total // (1024*1024*1024)) }} GB ({{ disk_percent }}%)
+            </div>
+        </div>
         <h1 style="font-size:2.2rem; font-weight:700; letter-spacing:-1px; margin-bottom:18px; color:#2e7d32; text-shadow:0 2px 8px #e5f7ea;">Gerenciador de Arquivos</h1>
         <div class="breadcrumb">
             <a href="/">Home</a>
