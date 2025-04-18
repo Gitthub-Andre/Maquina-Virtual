@@ -23,6 +23,26 @@ Este sistema integra autenticação via Node.js (com MongoDB) e um aplicativo pr
 
 ---
 
+## Permissão Sudo para Controle do Plex via Backend Flask
+
+Para que o backend Flask consiga reiniciar, consultar status e acessar logs do Plex Media Server sem pedir senha, é necessário conceder permissões específicas ao usuário do serviço (ex: `ubuntu`).
+
+### Comando executado para configurar:
+```bash
+sudo visudo -f /etc/sudoers.d/plex-flask
+```
+
+### Conteúdo adicionado ao arquivo `/etc/sudoers.d/plex-flask`:
+```bash
+ubuntu ALL=NOPASSWD: /usr/bin/systemctl restart plexmediaserver, /usr/bin/systemctl reload plexmediaserver, /usr/bin/systemctl status plexmediaserver, /usr/bin/systemctl enable plexmediaserver, /usr/bin/journalctl -u plexmediaserver -n 20 --no-pager
+```
+**Finalidade:**
+- Permitir que o usuário `ubuntu` execute os comandos de gerenciamento do Plex Media Server (restart, reload, status, enable, logs) via sudo, sem necessidade de digitar senha.
+- Fundamental para integração segura e automatizada do painel Flask com os comandos do sistema.
+- O backend Flask está configurado para usar esses comandos com `sudo` e caminho absoluto, garantindo compatibilidade mesmo em ambientes virtuais ou sob Gunicorn.
+
+---
+
 ## Componentes do Sistema
 
 ### 1. Node.js (Autenticação + MongoDB)

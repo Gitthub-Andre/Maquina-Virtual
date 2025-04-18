@@ -1,4 +1,4 @@
-Para rodar o app.py
+Para rodar o app.py no pc
 gunicorn -w 4 -b 127.0.0.1:5000 app:app
 
 Backup Nginx
@@ -13,3 +13,15 @@ git push -u origin master
 
 Pasta log do Plex
 ls -lh "/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Logs"
+
+Conectar a maquina virtual Oracle
+ssh -i "C:\Users\Administrador\.ssh\ssh-key-2025-04-02.key" ubuntu@140.238.180.148
+
+Reinicar Plex
+sudo systemctl restart plexmediaserver
+
+Status Plex
+sudo systemctl status plexmediaserver
+
+Reiniciar Flask
+sudo systemctl restart flask

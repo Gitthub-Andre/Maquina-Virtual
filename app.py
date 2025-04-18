@@ -417,34 +417,43 @@ def rename_file():
 # --- ROTA PARA COMANDOS DO PLEX MEDIA SERVER ---
 @app.route('/plex_command', methods=['POST'])
 def plex_command():
+    import shlex
     data = request.get_json()
     cmd = data.get('cmd')
     allowed_cmds = {
-        'start': ['systemctl', 'start', 'plexmediaserver'],
-        'stop': ['systemctl', 'stop', 'plexmediaserver'],
-        'restart': ['systemctl', 'restart', 'plexmediaserver'],
-        'status': ['systemctl', 'status', 'plexmediaserver'],
-        'update': ['systemctl', 'reload', 'plexmediaserver'],
-        'logs': ['journalctl', '-u', 'plexmediaserver', '-n', '30', '--no-pager'],
-        'info': ['ps', 'aux'],
-        'enable': ['systemctl', 'enable', 'plexmediaserver'],
-        'disable': ['systemctl', 'disable', 'plexmediaserver'],
-        'version': ['/usr/lib/plexmediaserver/Plex Media Server', '--version'],
+        'restart': 'sudo /usr/bin/systemctl restart plexmediaserver',
+        'status': 'sudo /usr/bin/systemctl status plexmediaserver',
+        'update': 'sudo /usr/bin/systemctl reload plexmediaserver',
+        'logs': 'sudo /usr/bin/journalctl -u plexmediaserver -n 20 --no-pager',
+        'info': 'ps aux',
+        'enable': 'sudo /usr/bin/systemctl enable plexmediaserver',
+        'version': '"/usr/lib/plexmediaserver/Plex Media Server" --version',
     }
     if cmd not in allowed_cmds:
         return jsonify({'success': False, 'message': 'Comando não permitido.'}), 400
     try:
-        # Para comandos que precisam de shell (como version), use shell=True
-        shell_needed = cmd == 'version'
-        result = subprocess.run(
-            ' '.join(allowed_cmds[cmd]) if shell_needed else allowed_cmds[cmd],
-            capture_output=True, text=True, shell=shell_needed
-        )
+        env = os.environ.copy()
+        env['PATH'] = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+        result = subprocess.run(allowed_cmds[cmd], capture_output=True, text=True, shell=True, timeout=30, env=env)
         output = result.stdout.strip() or result.stderr.strip() or 'Comando executado.'
+        # Filtro especial para logs do Plex
+        if cmd == 'logs':
+            filtered_lines = []
+            for line in output.splitlines():
+                l = line.lower()
+                if (
+                    "plex media server" in line
+                    or "error" in l
+                    or "fail" in l
+                    or "warn" in l
+                ):
+                    filtered_lines.append(line)
+            output = "\n".join(filtered_lines) or "Nenhuma mensagem relevante encontrada."
         status = result.returncode == 0
         return jsonify({'success': status, 'message': output})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Erro ao executar comando: {str(e)}'}), 500
+
 
 # Configuração para produção
 #if __name__ == "__main__":

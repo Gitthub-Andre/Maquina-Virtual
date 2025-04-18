@@ -1195,16 +1195,12 @@ document.addEventListener('DOMContentLoaded', function() {
             <li class="navbar-item dropdown">
                 <a href="#" class="navbar-link">Plex &#9662;</a>
                 <ul class="dropdown-menu">
-    <li><a href="#" onclick="executePlexCommand('start')">Iniciar Plex</a></li>
-    <li><a href="#" onclick="executePlexCommand('stop')">Parar Plex</a></li>
-    <li><a href="#" onclick="executePlexCommand('restart')">Reiniciar Plex</a></li>
-    <li><a href="#" onclick="executePlexCommand('status')">Status do Plex</a></li>
-    <li><a href="#" onclick="executePlexCommand('update')">Atualizar Biblioteca</a></li>
-    <li><a href="#" onclick="executePlexCommand('logs')">Ver Logs</a></li>
-    <li><a href="#" onclick="executePlexCommand('info')">Informações do Servidor</a></li>
-    <li><a href="#" onclick="executePlexCommand('enable')">Ativar na Inicialização</a></li>
-    <li><a href="#" onclick="executePlexCommand('disable')">Desativar na Inicialização</a></li>
-    <li><a href="#" onclick="executePlexCommand('version')">Versão do Plex</a></li>
+                    <li><a href="#" onclick="executePlexCommand('restart')">Reiniciar Plex</a></li>
+                    <li><a href="#" onclick="executePlexCommand('status')">Status do Plex</a></li>
+                    <li><a href="#" onclick="executePlexCommand('update')">Atualizar Biblioteca</a></li>
+                    <li><a href="#" onclick="executePlexCommand('logs')">Ver Logs</a></li>
+                    <li><a href="#" onclick="executePlexCommand('info')">Informações do Servidor</a></li>
+                    <li><a href="#" onclick="executePlexCommand('version')">Versão do Plex</a></li>
 </ul>
             </li>
             <li class="navbar-item">
@@ -1304,9 +1300,47 @@ function executePlexCommand(command) {
     })
     .then(response => response.json())
     .then(data => {
-        alert(data.message || 'Comando executado: ' + command);
+        showPlexResultModal(data.message || 'Comando executado: ' + command, data.success);
     })
-    .catch(() => alert('Erro ao executar comando.'));
+    .catch(() => showPlexResultModal('Erro ao executar comando.', false));
+}
+
+function showPlexResultModal(message, success) {
+    let modal = document.getElementById('plexResultModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'plexResultModal';
+        modal.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 28px 10px 28px;border-bottom:1px solid #e5e7eb;background:#f7fafc;border-radius:12px 12px 0 0;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <span style="font-size:1.6rem;">${success ? '🟢' : '🔴'}</span>
+                    <span style="font-size:1.1rem;font-weight:600;color:#23272f;">${success ? 'Comando executado' : 'Erro ao executar'}</span>
+                </div>
+                <button id="closePlexModalBtn" style="background:transparent;border:none;font-size:2rem;cursor:pointer;color:#888;transition:color 0.2s;padding:0 8px;" title="Fechar">&times;</button>
+            </div>
+            <pre id="plexResultText" style="margin:0;padding:24px 28px 18px 28px;background:#222;color:#e5e7eb;font-size:1rem;border-radius:0 0 12px 12px;box-shadow:none;white-space:pre-wrap;word-break:break-word;max-height:55vh;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#38f9d7 #222;"></pre>
+        `;
+        modal.style.position = 'fixed';
+        modal.style.top = '50%';
+        modal.style.left = '50%';
+        modal.style.transform = 'translate(-50%, -50%)';
+        modal.style.background = '#fff';
+        modal.style.padding = '0';
+        modal.style.zIndex = '9999';
+        modal.style.boxShadow = '0 12px 40px rgba(56,249,215,0.16), 0 2px 8px rgba(0,0,0,0.10)';
+        modal.style.borderRadius = '12px';
+        modal.style.maxWidth = '700px';
+        modal.style.width = '92vw';
+        modal.style.maxHeight = '80vh';
+        modal.style.overflow = 'visible';
+        modal.style.fontFamily = 'Segoe UI, Roboto, Arial, monospace';
+        modal.style.border = success ? '2px solid #10b981' : '2px solid #ef4444';
+        document.body.appendChild(modal);
+        document.getElementById('closePlexModalBtn').onclick = function() { modal.style.display = 'none'; };
+    }
+    document.getElementById('plexResultText').innerText = message;
+    modal.style.display = 'block';
+    modal.style.border = success ? '2px solid #10b981' : '2px solid #ef4444';
 }
 </script>
 
