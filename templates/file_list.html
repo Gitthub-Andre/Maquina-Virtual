@@ -1184,9 +1184,10 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
     </div>
     
-    <div class="search-container">
-        <input type="text" id="file-search" placeholder="Filtrar arquivos..." oninput="filterFiles()">
-    </div>
+    <div class="search-container" style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+    <input type="text" id="file-search" placeholder="Filtrar arquivos..." oninput="filterFiles()" style="flex:1; max-width: 300px;">
+    <input type="text" id="folder-search" placeholder="Filtrar pastas..." oninput="filterFolders()" style="flex:1; max-width: 300px; text-align: left;">
+</div>
     
     <nav class="main-navbar">
     <div class="navbar-container">
@@ -1201,7 +1202,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     <li><a href="#" onclick="executePlexCommand('logs')">Ver Logs</a></li>
                     <li><a href="#" onclick="executePlexCommand('info')">Informações do Servidor</a></li>
                     <li><a href="#" onclick="executePlexCommand('version')">Versão do Plex</a></li>
-</ul>
+                </ul>
+            </li>
+            <li class="navbar-item">
+                <a href="#" class="navbar-link" onclick="openTerminalModal()">Terminal</a>
             </li>
             <li class="navbar-item">
                 <a href="/logout" class="navbar-link">Logout</a>
@@ -1643,18 +1647,8 @@ function showPlexResultModal(message, success) {
         // BLOCO DUPLICADO DE UPLOAD REMOVIDO. Use apenas handleUpload do bloco principal!
     });
 
-    // Filtro com animação
-    function filterFiles() {
-        const input = document.getElementById('file-search');
-        const filter = input.value.toUpperCase();
-        const rows = document.querySelectorAll('tbody tr');
-        
-        rows.forEach(row => {
-            const name = row.querySelector('td:nth-child(2)').textContent.toUpperCase();
-            row.style.display = (filter === '' || name.includes(filter)) ? '' : 'none';
-        });
-    }
     
+
     // Ordenação
     function sortTable(column) {
         const url = new URL(window.location.href);
@@ -1729,6 +1723,134 @@ document.getElementById('upload-form').addEventListener('submit', function(e) {
     progressStatus.textContent = 'Enviando...';
     xhr.send(formData);
 });
+</script>
+<script>
+</script>
+<!-- Modal Terminal -->
+<style>
+    #terminalModal {
+        display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100vw; height: 100vh;
+        background: rgba(0,0,0,0.65); align-items: center; justify-content: center;
+    }
+    #terminalModal.active { display: flex; }
+    .terminal-modal-content {
+        background: #23272e; color: #e0e0e0; padding: 0; border-radius: 12px; max-width: 540px; width: 95vw;
+        box-shadow: 0 8px 40px #000a; position: relative; overflow: hidden; border: 1px solid #343b43;
+        font-family: 'Fira Mono', 'Consolas', monospace;
+    }
+    .terminal-header {
+        display: flex; align-items: center; padding: 18px 24px 8px 24px; background: #181c22;
+        border-bottom: 1px solid #343b43;
+    }
+    .terminal-header .icon {
+        font-size: 22px; margin-right: 10px; color: #00c853;
+    }
+    .terminal-header h2 {
+        font-size: 1.2rem; font-weight: 600; margin: 0; flex: 1;
+    }
+    .terminal-header .close-btn {
+        font-size: 28px; color: #888; cursor: pointer; transition: color .2s;
+        margin-left: 12px;
+    }
+    .terminal-header .close-btn:hover { color: #ff5252; }
+    .terminal-form {
+        display: flex; gap: 10px; padding: 18px 24px 0 24px; background: #23272e;
+    }
+    #terminalCommand {
+        flex: 1; padding: 10px 12px; border-radius: 6px; border: 1px solid #343b43;
+        background: #181c22; color: #fff; font-size: 15px;
+        outline: none; transition: border .2s;
+    }
+    #terminalCommand:focus { border: 1.5px solid #00c853; }
+    .terminal-form button {
+        padding: 10px 20px; border-radius: 6px; border: none; background: #00c853;
+        color: #23272e; font-weight: 600; font-size: 15px; cursor: pointer; transition: background .2s;
+    }
+    .terminal-form button:hover { background: #009624; }
+    #terminalOutput {
+        background: #181c22; color: #b9f6ca; min-height: 90px; margin: 18px 24px 24px 24px; padding: 14px; border-radius: 6px;
+        max-height: 320px; overflow-y: auto; font-size: 14px; line-height: 1.5; box-shadow: 0 0 0 1px #343b43;
+        font-family: 'Fira Mono', 'Consolas', monospace;
+    }
+    @media (max-width: 600px) {
+        .terminal-modal-content { max-width: 99vw; }
+        .terminal-header, .terminal-form, #terminalOutput { padding-left: 10px; padding-right: 10px; }
+    }
+</style>
+<div id="terminalModal" class="modal">
+    <div class="terminal-modal-content">
+        <div class="terminal-header">
+            <span class="icon">&#x1F5A5;</span>
+            <h2>Terminal Remoto</h2>
+            <span class="close-btn" onclick="closeTerminalModal()">&times;</span>
+        </div>
+        <form id="terminalForm" class="terminal-form" onsubmit="runTerminalCommand(event)">
+            <input type="text" id="terminalCommand" autocomplete="off" placeholder="Digite o comando e pressione Enter" autofocus>
+            <button type="submit">Executar</button>
+        </form>
+        <pre id="terminalOutput"></pre>
+    </div>
+</div>
+<script>
+function openTerminalModal() {
+    document.getElementById('terminalModal').classList.add('active');
+    setTimeout(function(){ document.getElementById('terminalCommand').focus(); }, 200);
+    document.getElementById('terminalOutput').textContent = '';
+}
+function closeTerminalModal() {
+    document.getElementById('terminalModal').classList.remove('active');
+}
+function runTerminalCommand(event) {
+    event.preventDefault();
+    var cmd = document.getElementById('terminalCommand').value;
+    var output = document.getElementById('terminalOutput');
+    output.textContent = 'Executando...';
+    fetch('/run_terminal_command', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({command: cmd})
+    })
+    .then(response => response.json())
+    .then(data => {
+        output.textContent = data.output || data.error || 'Sem resposta.';
+        output.scrollTop = output.scrollHeight;
+    })
+    .catch(err => {
+        output.textContent = 'Erro ao executar comando.';
+    });
+}
+</script>
+<script>
+// Filtro de arquivos: atua apenas na tabela de arquivos
+function filterFiles() {
+    const input = document.getElementById('file-search');
+    const filter = input.value.toUpperCase();
+    const rows = document.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+        const cell = row.querySelector('td:nth-child(2)');
+        if (cell) {
+            const name = cell.textContent.toUpperCase();
+            row.style.display = (filter === '' || name.includes(filter)) ? '' : 'none';
+        } else {
+            row.style.display = '';
+        }
+    });
+}
+// Filtro de pastas: atua apenas na grade de pastas
+function filterFolders() {
+    var input = document.getElementById('folder-search');
+    var filter = input.value.toLowerCase();
+    var folderGrid = document.querySelector('.folder-grid');
+    if (!folderGrid) return;
+    var items = folderGrid.getElementsByClassName('folder-item');
+    for (var i = 0; i < items.length; i++) {
+        var link = items[i].querySelector('.folder-link');
+        if (link) {
+            var txtValue = link.textContent || link.innerText;
+            items[i].style.display = txtValue.toLowerCase().indexOf(filter) > -1 ? '' : 'none';
+        }
+    }
+}
 </script>
 </body>
 </html>

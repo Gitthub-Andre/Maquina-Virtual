@@ -415,6 +415,30 @@ def rename_file():
     return redirect(url_for('index', folder_path=current_path))
 
 # --- ROTA PARA COMANDOS DO PLEX MEDIA SERVER ---
+
+@app.route('/run_terminal_command', methods=['POST'])
+@login_required
+def run_terminal_command():
+    try:
+        data = request.get_json()
+        cmd = data.get('command', '').strip()
+        if not cmd:
+            return jsonify({'error': 'Comando vazio.'}), 400
+        # Segurança: bloqueia comandos perigosos
+        proibidos = ['rm ', 'shutdown', 'reboot', 'init ', 'halt', 'poweroff', 'mkfs', 'dd ', '>:']
+        if any(p in cmd for p in proibidos):
+            return jsonify({'error': 'Comando proibido.'}), 403
+        # Ajusta PATH igual ao plex_command para garantir comandos do sistema
+        env = os.environ.copy()
+        env['PATH'] = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+        result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20, text=True, env=env)
+        saida = result.stdout + ('\n' + result.stderr if result.stderr else '')
+        return jsonify({'output': saida.strip()})
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Tempo limite excedido.'}), 500
+    except Exception as e:
+        return jsonify({'error': f'Erro: {str(e)}'}), 500
+
 @app.route('/plex_command', methods=['POST'])
 def plex_command():
     import shlex
